@@ -153,6 +153,8 @@ ggsave(filename = here("plots/final_min.svg"), plot = mineralization_plot, width
 
 #plot mineralizability----------------------------------------------------------
 
+water_content_labels <- c(Low = "Low water content", High = "High water content")
+sp + facet_grid(. ~ sex, labeller = labeller(sex = labels))
 
 mineralizability_plot <- long_data_joined_mean %>% 
   filter(Treatment != "litter") %>% 
@@ -165,15 +167,17 @@ mineralizability_plot <- long_data_joined_mean %>%
     width = 0.2) +
   labs(y = expression(bold("Mineralizability (mg CO"["2"]*"-C/g SOC)")),
        x = expression(bold("Days of incubation")), fill = "Treatment") + 
-  facet_wrap(Moisture ~ .) + 
+  facet_wrap(. ~ Moisture, labeller = labeller(Moisture = water_content_labels)) + 
   guides(fill = guide_legend(order = 1, override.aes = list(shape = 22))) +
   mytheme +
-  theme(legend.text = element_text(size = 17)) +
-  theme(legend.title = element_text(size = 17))
+  theme(legend.text = element_text(size = 15)) +
+  theme(legend.title = element_text(size = 15))
 
 final_min_c_plot <- mineralizability_plot + scale_fill_brewer(palette = "Set1") + xlim(0,150)
+
 final_min_c_plot
-ggsave(filename = here("plots/final_min_c.svg"), plot = final_min_c_plot)
+
+ggsave(filename = here("plots/final_min_c.svg"), plot = final_min_c_plot, width = 8, height = 5)
 
 # statistical analyses----------------------------------------------------------
 
@@ -197,14 +201,17 @@ mean_tot_min <- total_mineralization %>%
   group_by(Litter, Moisture, Treatment) %>% 
   summarize(mean_min = mean(cum_mineralization),
             mean_min_c = mean(cum_mineralizability),
+            mean_emi = mean(cum_emission),
             sd_min = sd(cum_mineralization),
-            sd_min_c = sd(cum_mineralizability))
+            sd_min_c = sd(cum_mineralizability),
+            sd_emi = sd(cum_emission))
 
 
 total_mineralization_table <- kable(
   mean_tot_min, align = "lllcccc",digits = c(1, 1, 1, 2, 2, 2, 2), 
   col.names = c("Litter", "Moisture", "Treatment", "Mineralization", 
-                "Mineralizability", "SD mineralization", "SD mineralizability")) %>% 
+                "Mineralizability", "CO2 emission", "SD mineralization", "SD mineralizability",
+                "SD emission")) %>% 
   kable_styling(full_width = T, position = "center")
 
 
