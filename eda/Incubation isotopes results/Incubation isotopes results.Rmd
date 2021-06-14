@@ -1,0 +1,233 @@
+---
+title: Incubation isotopes results
+author: Itamar Shabtai
+date: "`r Sys.Date()`"
+output: 
+  github_document:
+    toc: true
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+# Libraries
+
+library(tidyverse)
+library(emmeans)
+library(here)
+library(kableExtra)
+
+# Parameters
+
+mytheme <- theme_bw() + theme(panel.grid = element_blank()) + 
+  theme(axis.text.x = element_text(size = 15)) +  
+  theme(axis.text.y = element_text(size = 15)) +
+  theme(axis.title.x = element_text(size = 17)) +
+  theme(axis.title.y = element_text(size = 17)) +
+  theme(legend.text = element_text(size = 17)) +
+  theme(legend.title = element_text(size = 17)) +
+  theme(strip.text.x = element_text(size = 17))
+
+delta_df <- here("data/incubation_delta_values.rds")
+mix_df <- here("data/incubation_isotopes_results.rds")
+
+#===============================================================================
+
+# load data
+
+delta_df <- read_rds(delta_df)
+mix_df <- read_rds(mix_df)
+```
+
+## Fraction of CO[2] from litter
+
+### plot
+
+```{r fraction co2 from litter, echo=FALSE}
+
+# facet label rename water content
+
+water_content_labels <- c(Low = "Low water content", High = "High water content")
+
+# plots
+
+delta_p <- ggplot(delta_df, aes(Moisture, f_c_co2)) + 
+  geom_boxplot(aes(fill = Treatment)) +
+  facet_wrap(. ~ Time) + 
+    geom_point(aes(Moisture, f_c_co2, fill = Treatment), 
+             position = position_jitterdodge(jitter.width = 0.1), 
+             shape = 21, size = 3) + 
+  theme_bw() + 
+  labs(y = expression("Fraction of CO"["2"]*" from labeled litter"),
+       x = expression("Water content")) +
+  scale_fill_brewer(palette = "Set1") + 
+  mytheme
+delta_p
+
+```
+
+### ANOVA and emmeans of fraction of CO2 from litter
+
+```{r ANOVA and emmeans of fraction of CO2 from litter, echo=FALSE}
+
+# 3-way ANOVA with interaction terms for fraction of CO2 from litter-C
+
+aov_frac_litter <- aov(f_c_co2 ~ Moisture*Treatment*Time, 
+                      data = mix_df)
+
+# Anova table for fraction of CO2 from litter-C 
+
+options(knitr.kable.NA = '')
+
+aov_frac_litter_table <- 
+  kable(anova(aov_frac_litter),
+        digits = c(1, 1, 1, 1, 4),
+        align = "lccccc",
+        caption = "3-way ANOVA for fraction of litter C in CO2") %>% 
+  kable_styling()
+
+aov_frac_litter_table
+
+# contrasts 
+
+em_litter_frac <- emmeans(aov_frac_litter, pairwise ~ Moisture | Time*Treatment)
+
+em_litter_frac_contrasts <- em_litter_frac$contrasts %>% 
+  summary(infer = TRUE) %>% 
+  as_tibble()
+
+litter_frac_contrasts_table <- 
+  kable(em_litter_frac_contrasts, 
+        align = "lllccccccc",
+        digits = c(1,1,1,3,2,1,3,3,2,4),
+        caption = "Comparison of treatment means") %>% 
+  kable_styling(full_width = T, position = "center")
+
+litter_frac_contrasts_table
+```
+
+
+## Priming
+
+### plot
+
+```{r priming plot, echo=FALSE}
+
+# plot----
+
+priming_plot <- 
+  ggplot(mix_df, aes(Time, priming, fill = Treatment)) + 
+  geom_boxplot() + facet_wrap(. ~ Moisture) +
+  geom_point(aes(Time, priming, fill = Treatment), 
+             position = position_jitterdodge(jitter.width = 0.1), shape = 21, size = 3) +
+  labs(y = expression(bold("SOC priming (mg CO"["2"]*"-C g"^"-1"*" soil)")),
+       x = expression(bold("Sampling time"))) +
+  scale_fill_brewer(palette = "Set1") + mytheme
+
+priming_plot
+
+ggsave(filename = here("plots/soc_priming.svg"), plot = priming_plot)
+```
+
+### ANOVA and emmeans
+
+```{r anova for priming, echo=FALSE}
+
+aov_priming <- aov(priming ~ Moisture*Treatment*Time, 
+                             data = mix_df)
+
+options(knitr.kable.NA = '')
+aov_priming_table <- 
+  kable(anova(aov_priming),
+        digits = c(1, 1, 1, 1, 4),
+        align = "lccccc",
+        caption = "3-way ANOVA for priming") %>% 
+  kable_styling()
+
+aov_priming_table
+
+# contrasts for priming
+
+em_priming <- emmeans(aov_priming, pairwise ~ Treatment | Moisture*Time)
+
+em_priming_contrasts <- em_priming$contrasts %>% 
+  summary(infer = TRUE) %>% 
+  as_tibble()
+
+priming_contrasts_table <- 
+  kable(em_priming_contrasts, 
+        align = "lllccccccc",
+        digits = c(1, 1, 1, 2, 2, 2, 2, 2, 2, 4),
+        caption = "Comparison of treatment means") %>% 
+  kable_styling(full_width = T, position = "center")
+
+priming_contrasts_table
+```
+
+## Amount of C litter mineralized
+
+### plot
+
+```{r C litter mineralized plot, echo=FALSE}
+substrate_mineralized_plot <- 
+  ggplot(mix_df, aes(Time, CO2_13_C, fill = Treatment)) + 
+  geom_boxplot() + 
+  facet_wrap(. ~ Moisture, labeller = labeller(Moisture = water_content_labels)) +
+  geom_point(aes(Time, CO2_13_C, fill = Treatment), 
+             position = position_jitterdodge(jitter.width = 0.1), 
+             shape = 21, size = 3) +
+  labs(y = expression(bold("Litter mineralized (mg CO"["2"]*"-C g"^"-1"*" soil)")),
+       x = expression(bold("Sampling time"))) +
+  scale_fill_brewer(palette = "Set1") + mytheme
+
+substrate_mineralized_plot
+
+ggsave(filename = here("plots/substrate_mineralized.svg"), 
+       plot = substrate_mineralized_plot,
+       width = 8, height = 6)
+
+```
+
+```{r C litter mineralized stats, echo=FALSE}
+
+# 3-way ANOVA for C litter mineralized----
+
+aov_litter_min <- 
+  aov(CO2_13_C ~ Moisture*Treatment*Time, 
+      data = mix_df)
+
+# ANOVA table for C litter mineralized----
+
+options(knitr.kable.NA = '')
+
+aov_litter_min_table <- 
+  kable(anova(aov_litter_min),
+        digits = c(1, 1, 1, 1, 4),
+        align = "lccccc",
+        caption = "3-way ANOVA for amount of litter-C mineralized") %>% 
+  kable_styling()
+
+aov_litter_min_table
+
+# emmeans for litter-C mineralized
+
+em_litter_min <- emmeans(aov_litter_min, pairwise ~ Moisture | Treatment*Time)
+
+em_litter_min_contrasts <- em_litter_min$contrasts %>% 
+  summary(infer = TRUE) %>% 
+  as_tibble()
+
+litter_min_contrasts_table <- 
+  kable(em_litter_min_contrasts, 
+        align = "lllccccccc",
+        digits = c(1, 1, 1, 2, 2, 2, 2, 2, 2, 4),
+        caption = "Comparison of means for amount of mineralized litter-C") %>% 
+  kable_styling(full_width = T, position = "center")
+
+litter_min_contrasts_table
+```
+
+

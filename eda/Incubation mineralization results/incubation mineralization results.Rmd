@@ -1,0 +1,269 @@
+---
+title: SI2 Ca incubation results
+author: Itamar Shabtai
+date: "`r Sys.Date()`"
+output: 
+  github_document:
+    toc: true
+always_allow_html: true
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Libraries
+
+library(tidyverse)
+library(here)
+library(emmeans)
+library(kableExtra)
+
+# Parameters
+
+all_incubation_df <- here("data/incubation_results.rds")
+mean_incubation_df <- here("data/mean_incubation_results.rds")
+day_4_df <- here("data/4day_min_data.rds")
+end_df <- here("data/total_min_data.rds")
+
+mytheme <- theme_bw() + theme(panel.grid = element_blank()) + 
+  theme(axis.text.x = element_text(size = 15)) +  
+  theme(axis.text.y = element_text(size = 15)) +
+  theme(axis.title.x = element_text(size = 17)) +
+  theme(axis.title.y = element_text(size = 17)) +
+  theme(legend.text = element_text(size = 17)) +
+  theme(legend.title = element_text(size = 17)) +
+  theme(strip.text.x = element_text(size = 17))
+
+#===============================================================================
+
+# load data
+
+all_df <- read_rds(all_incubation_df)
+mean_df <- read_rds(mean_incubation_df)
+day_4_df <- read_rds(day_4_df)
+end_df <- read_rds(end_df)
+```
+
+## Plots
+
+```{r emission plot, echo=FALSE}
+emission_plot <- mean_df %>% 
+  ggplot(aes(Days, mean_cum_emission, shape = Litter, fill = Treatment)) + 
+  geom_point(size = 2) + 
+  scale_shape_manual(values = c(21,23)) +
+  guides(fill = guide_legend(override.aes = list(shape = 22))) +
+  geom_errorbar(
+    aes(ymin = mean_cum_emission - sd_cum_emission, 
+        ymax = mean_cum_emission + sd_cum_emission),
+        width = 0.1) +
+  ylab(expression("CO2 emitted (mg CO2-C)")) + 
+  facet_wrap(Moisture ~ .) +
+  mytheme
+
+control_emission_plot <- filter(mean_df, Litter == "N") %>% 
+  ggplot(aes(Days, mean_cum_emission, color = Treatment)) + 
+  geom_point(size = 2) + 
+  guides(fill = guide_legend(override.aes = list(shape = 22))) +
+  geom_errorbar(aes(
+    ymin = mean_cum_emission - sd_cum_emission,
+    ymax = mean_cum_emission + sd_cum_emission),
+    width = 0.1) +
+  ylab(expression("CO2 emitted (mg CO2-C)")) + 
+  facet_wrap(Moisture ~ .) +
+  mytheme
+
+
+emission_plot
+
+control_emission_plot
+```
+
+```{r mineralization plot, echo=FALSE}
+
+mineralization_plot <- mean_df %>% 
+  filter(Treatment != "litter") %>% 
+  ggplot(aes(Days, mean_cum_mineralization, fill = Treatment, shape = Litter)) + 
+  geom_point(size = 2.5) + 
+  scale_shape_manual(values = c(21,23)) +
+  geom_errorbar(aes(
+    ymin = mean_cum_mineralization - sd_cum_mineralization, 
+    ymax = mean_cum_mineralization + sd_cum_mineralization), 
+    width = 0.2) +
+  labs(y = (expression(bold("Mineralization (mg CO"["2"]*"-C/g soil)"))),
+       x = expression(bold("Days of incubation")), fill = "Treatment") + 
+  facet_wrap(Moisture ~ .) +
+  guides(fill = guide_legend(order = 1, override.aes = list(shape = 22))) +
+  mytheme + scale_fill_brewer(palette = "Set1")
+
+mineralization_plot
+
+ggsave(filename = here("plots/final_min.svg"), plot = mineralization_plot, width = 6, height = 4)
+```
+
+```{r mineralizability plot, echo=FALSE}
+water_content_labels <- c(Low = "Low water content", High = "High water content")
+
+mineralizability_plot <- mean_df %>% 
+  filter(Treatment != "Litter") %>% 
+  ggplot(aes(Days, mean_cum_mineralizability, fill = Treatment, shape = Litter)) + 
+  geom_point(size = 2.5) + 
+  scale_shape_manual(values = c(21,23)) +
+  geom_errorbar(aes(
+    ymin = mean_cum_mineralizability - se_cum_mineralizability, 
+    ymax = mean_cum_mineralizability + se_cum_mineralizability), 
+    width = 0.2) +
+  labs(y = expression(bold("Mineralizability (mg CO"["2"]*"-C/g SOC)")),
+       x = expression(bold("Days of incubation")), fill = "Treatment") + 
+  facet_wrap(. ~ Moisture, labeller = labeller(Moisture = water_content_labels)) + 
+  guides(fill = guide_legend(order = 1, override.aes = list(shape = 22))) +
+  mytheme +
+  theme(legend.text = element_text(size = 15)) +
+  theme(legend.title = element_text(size = 15)) 
+
+final_min_c_plot <- mineralizability_plot + scale_fill_brewer(palette = "Set1") + xlim(0,150)
+
+final_min_c_plot
+
+ggsave(filename = here("plots/final_min_c.svg"), plot = final_min_c_plot, width = 8, height = 5)
+```
+
+## Mineralization at 4 day marks
+
+```{r 4 day table, echo=FALSE}
+# tibble of mean 4day cumulative mineralization----
+
+mean_4day_min <- day_4_df %>% 
+  group_by(Litter, Moisture, Treatment) %>% 
+  summarize(mean_min = mean(cum_mineralization),
+            mean_min_c = mean(cum_mineralizability),
+            sd_min = sd(cum_mineralization),
+            sd_min_c = sd(cum_mineralizability))
+
+# table of mean 4 day mineralization----
+
+four_day_mineralization_table <- 
+  kable(
+  mean_4day_min, align = "lllcccc",digits = c(1, 1, 1, 2, 2, 2, 2), 
+  col.names = c("Litter", "Moisture", "Treatment", "Mineralization", 
+                "Mineralizability", "SD mineralization", "SD mineralizability"),
+  caption = "Summary table for incubation after 4 days") %>% 
+  kable_styling(full_width = T, position = "center")
+```
+
+### ANOVA and emmeans at 4 day mark
+
+```{r 4 day ANOVA, echo=FALSE}
+
+# 3-way anova on 4 day cum mineralizability----
+
+day_4_aov <- lm(cum_mineralizability ~ Treatment*Moisture*Litter, data = day_4_df)
+
+# table of day 4 mineralization----
+day_4_anova_table <- 
+  kable(anova(day_4_aov),
+        digits = c(1, 1, 1, 1, 4),
+        align = "lccccc",
+        caption = "3-way ANOVA for day 4 cumulative mineralizability") %>% 
+  kable_styling()
+
+day_4_anova_table
+
+# emmeans on 3-way anova----
+
+em_4_day <- emmeans(day_4_aov, pairwise ~ Treatment | Moisture*Litter)
+em_4_day_contrasts <- em_4_day$contrasts %>% 
+  summary(infer = TRUE) %>% 
+  as_tibble()
+
+em_4_day_contrasts
+
+day4_contrasts <- kable(em_4_day_contrasts, 
+                              align = "lllccccccc",
+                              digits = c(1, 1, 1, 2, 2, 2, 2, 2, 2, 4),
+                              caption = "Comparison of treatment estimated 
+                        marginal means of mineralizability after 4 days of incubation") %>% 
+  kable_styling(full_width = T, position = "center")
+
+day4_contrasts
+
+emmip(day_4_aov, Treatment~Moisture) +
+  mytheme
+```
+
+
+## Mineralization at end of incubation
+
+```{r end of incubation table, echo=FALSE}
+
+# tibble of mean cumulative mineralization----
+
+mean_tot_min <- end_df %>% 
+  group_by(Litter, Moisture, Treatment) %>% 
+  summarize(mean_min = mean(cum_mineralization),
+            mean_min_c = mean(cum_mineralizability),
+            mean_emi = mean(cum_emission),
+            sd_min = sd(cum_mineralization),
+            sd_min_c = sd(cum_mineralizability),
+            sd_emi = sd(cum_emission))
+
+# table of mean total mineralization----
+
+total_mineralization_table <- kable(
+  mean_tot_min, align = "lllcccc",digits = c(1, 1, 1, 2, 2, 2, 2), 
+  col.names = c("Litter", "Moisture", "Treatment", "Mineralization", 
+                "Mineralizability", "CO2 emission", "SD mineralization", 
+                "SD mineralizability", "SD emission")) %>% 
+  kable_styling(full_width = T, position = "center")
+
+total_mineralization_table
+```
+
+### ANOVA and emmeans at end of incubation
+
+```{r anova and emmeans at end, echo=FALSE}
+
+#3-way ANOVA of total  mineralization---- 
+
+day_end_aov <- aov(cum_mineralizability ~ Moisture*Treatment*Litter, 
+                             data = end_df)
+
+# table of total mineralization----
+
+options(knitr.kable.NA = '')
+
+day_end_anova_table <- 
+  kable(anova(day_end_aov),
+        digits = c(1, 1, 1, 1, 4),
+        align = "lccccc",
+        caption = "3-way ANOVA for cumulative mineralizability") %>% 
+  kable_styling()
+
+day_end_anova_table
+
+# emmeans of total mineralization----
+
+em_day_end <- emmeans(day_end_aov, pairwise ~ Treatment | Moisture*Litter)
+
+emmean_end_contrasts <- em_day_end$contrasts %>% 
+  summary(infer = TRUE) %>% 
+  as_tibble()
+
+end_contrasts <- kable(emmean_end_contrasts, 
+                               align = "lllccccccc",
+                               digits = c(1, 1, 1, 2, 2, 2, 2, 2, 2, 4),
+                               caption = "Comparison of treatment estimated 
+                        marginal means of cumulative mineralizability at end of incubation") %>% 
+  kable_styling(full_width = T, position = "center")
+
+end_contrasts
+
+
+emmip(day_end_aov, Moisture~Treatment) +
+  mytheme
+```
+
+
+
